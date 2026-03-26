@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Built2Map Dashboard</title>
+    <!-- Modern font & Vis.js for Networking Map -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root {
+            --primary: #4A90E2;
+            --bg-color: #f4f6f8;
+            --card-bg: #fff;
+            --text: #333;
+            --border: #e1e4e8;
+            --danger: #e74c3c;
+            --success: #2ecc71;
+            --unknown: #f1c40f;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); margin: 0; padding: 0; color: var(--text); }
+        .navbar { background-color: #2c3e50; display: flex; align-items: center; padding: 0 20px; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .navbar-brand { font-size: 1.5rem; font-weight: 600; margin-right: 40px; letter-spacing: 1px; }
+        .nav-links { display: flex; list-style: none; margin: 0; padding: 0; }
+        .nav-links li { padding: 20px 15px; cursor: pointer; transition: background 0.3s; }
+        .nav-links li:hover, .nav-links li.active { background-color: #34495e; border-bottom: 3px solid var(--primary); }
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+        .card { background-color: var(--card-bg); border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 12px 15px; border-bottom: 1px solid var(--border); }
+        th { background-color: #f9fafc; font-weight: 600; color: #5c6ac4; }
+        tr:hover { background-color: #f1f3f5; }
+        .status-badge { padding: 5px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: white; text-transform: capitalize; }
+        .status-badge.new_unknown { background-color: var(--danger); }
+        .status-badge.unknown { background-color: var(--unknown); color: #333; }
+        .status-badge.trusted { background-color: var(--success); }
+        #network-map { height: 600px; border: 1px solid var(--border); border-radius: 8px; background: #fafafa;}
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">Built2Map</div>
+        <ul class="nav-links">
+            <li class="active" onclick="switchTab('dashboard', this)">Dashboard</li>
+            <li onclick="switchTab('notifications', this)">Notifications</li>
+            <li onclick="switchTab('configuration', this)">Configuration</li>
+            <li onclick="switchTab('details', this)">Details</li>
+            <li onclick="switchTab('performance', this)">Performance</li>
+            <li onclick="switchTab('software_update', this)">Software Update</li>
+            <li onclick="switchTab('map', this)">Map</li>
+            <li onclick="switchTab('tools', this)">Tools</li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- Dashboard Tab -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <h2>Network Devices</h2>
+                <button onclick="fetchDevices()" style="padding: 10px 20px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer;">Refresh Dashboard</button>
+            </div>
+            <div class="card">
+                <table id="devicesTable">
+                    <thead>
+                        <tr><th>Hostname</th><th>MAC Address</th><th>IP Address</th><th>Manufacturer</th><th>Status</th><th>Last Seen</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div id="tab-notifications" class="tab-content">
+            <h2>System Notifications</h2>
+            <div class="card">
+                <button onclick="fetchNotifications()" style="margin-bottom:15px; padding:8px 15px;">Refresh Logs</button>
+                <table id="notificationsTable">
+                    <thead><tr><th>Time</th><th>Type</th><th>Message</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Map Tab -->
+        <div id="tab-map" class="tab-content">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <h2>Live Network Topology</h2>
+                <button onclick="loadMap()" style="padding: 10px 20px; background:var(--primary); color:white; border:none; border-radius:5px; cursor:pointer;">Re-Draw Map</button>
+            </div>
+            <div class="card" style="padding: 0;">
+                <div id="network-map"></div>
+            </div>
+        </div>
+
+        <!-- Placeholder Tabs -->
+        <div id="tab-configuration" class="tab-content"><h2>Configuration</h2><div class="card"><p>Feature coming soon...</p></div></div>
+        <div id="tab-details" class="tab-content"><h2>Device Details</h2><div class="card"><p>Click a device on the Dashboard to view deep inspection details.</p></div></div>
+        <div id="tab-performance" class="tab-content"><h2>Network Performance</h2><div class="card"><p>Charts coming soon...</p></div></div>
+        <div id="tab-software_update" class="tab-content"><h2>Software Update</h2><div class="card"><p>Current Version: Built2Map v1.5.0<br><br><button disabled>Up to date</button></p></div></div>
+        <div id="tab-tools" class="tab-content"><h2>Network Tools</h2><div class="card"><p>Ping and Wake-on-LAN tools coming soon...</p></div></div>
+    </div>
+
+    <script>
+        // Obfuscation Helpers
+        function obfuscateMAC(mac) { return mac ? mac.slice(0, -1) + 'J' : mac; }
+        function obfuscateIP(ip) {
+            if(!ip) return ip;
+            let p = ip.split('.');
+            if(p.length === 4) { p[3] = Math.max(0, parseInt(p[3])-1).toString(); return p.join('.'); }
+            return ip;
+        }
+        function obfuscateText(text) {
+            if(!text) return text;
+            text = text.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, m => obfuscateIP(m));
+            text = text.replace(/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/gi, m => obfuscateMAC(m));
+            return text;
+        }
+
+        // SPA Tab Switching Logic
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.querySelectorAll('.nav-links li').forEach(li => li.classList.remove('active'));
+            element.classList.add('active');
+            
+            if (tabId === 'dashboard') fetchDevices();
+            if (tabId === 'notifications') fetchNotifications();
+            if (tabId === 'map') loadMap();
+        }
+
+        // Data Fetching
+        async function fetchDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const devices = await response.json();
+                const tbody = document.querySelector('#devicesTable tbody');
+                tbody.innerHTML = '';
+                devices.forEach(d => {
+                    const tr = document.createElement('tr');
+                    const dateStr = new Date(d.last_seen).toLocaleString();
+                    tr.innerHTML = `
+                        <td style="font-weight: 600;">${obfuscateText(d.hostname)}</td>
+                        <td>${obfuscateMAC(d.mac)}</td>
+                        <td>${obfuscateIP(d.ip)}</td>
+                        <td>${d.vendor}</td>
+                        <td>
+                            <select class="status-badge ${d.status}" onchange="updateStatus('${d.mac}', this.value)" style="border:none; cursor:pointer;">
+                                <option value="new_unknown" ${d.status === 'new_unknown' ? 'selected' : ''}>New Unknown</option>
+                                <option value="unknown" ${d.status === 'unknown' ? 'selected' : ''}>Unknown</option>
+                                <option value="trusted" ${d.status === 'trusted' ? 'selected' : ''}>Trusted</option>
+                            </select>
+                        </td>
+                        <td>${dateStr}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        async function updateStatus(mac, newStatus) {
+            await fetch('/api/device/status', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mac, status: newStatus })
+            });
+            fetchDevices();
+        }
+
+        async function fetchNotifications() {
+            const resp = await fetch('/api/notifications');
+            const events = await resp.json();
+            const tbody = document.querySelector('#notificationsTable tbody');
+            tbody.innerHTML = '';
+            events.forEach(e => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${e.timestamp}</td><td><span class="status-badge trusted">${e.type}</span></td><td>${obfuscateText(e.message)}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Vis.js Network Parsing
+        var networkMap = null;
+        async function loadMap() {
+            const resp = await fetch('/api/topology');
+            const data = await resp.json();
+            
+            // Format nodes for vis.js grouping
+            const formattedNodes = data.nodes.map(n => {
+                let nodeParams = {};
+                if(n.group === 'router') nodeParams = { ...n, shape: 'circularImage', image: 'https://cdn-icons-png.flaticon.com/512/3616/3616183.png' };
+                else if(n.group === 'trusted') nodeParams = { ...n, shape: 'dot', color: '#2ecc71' };
+                else if(n.group === 'unknown') nodeParams = { ...n, shape: 'dot', color: '#f1c40f' };
+                else nodeParams = { ...n, shape: 'dot', color: '#e74c3c' }; // new_unknown
+                
+                nodeParams.label = obfuscateText(nodeParams.label);
+                nodeParams.title = obfuscateText(nodeParams.title);
+                return nodeParams;
+            });
+
+            const container = document.getElementById('network-map');
+            const mapData = {
+                nodes: new vis.DataSet(formattedNodes),
+                edges: new vis.DataSet(data.edges)
+            };
+            const options = {
+                nodes: { size: 20, font: { size: 14, color: '#333' } },
+                edges: { width: 2, color: '#999' },
+                physics: { stabilization: false, barnesHut: { gravitationalConstant: -2000, springConstant: 0.04 } }
+            };
+            
+            if (networkMap) networkMap.destroy();
+            networkMap = new vis.Network(container, mapData, options);
+        }
+
+        window.onload = function() {
+            fetchDevices();
+            setInterval(() => {
+                if(document.getElementById('tab-dashboard').classList.contains('active')) fetchDevices();
+                if(document.getElementById('tab-notifications').classList.contains('active')) fetchNotifications();
+            }, 10000);
+        };
+    </script>
+</body>
+</html>
