@@ -87,7 +87,7 @@ def api_topology():
         nodes.append({
             "id": node_id,
             "label": label,
-            "title": f"MAC: {d['mac']}<br>IP: {d['ip']}<br>Vendor: {d['vendor']}",
+            "title": f"MAC: {escape(d['mac'])}<br>IP: {escape(d['ip'])}<br>Vendor: {escape(d['vendor'])}",
             "group": d['status']
         })
         # Connect everything to the router for a classic star topology
