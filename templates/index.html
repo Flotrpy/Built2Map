@@ -104,6 +104,10 @@
 
     <script>
         // Obfuscation Helpers
+        // Hostnames/vendors come from the LAN (reverse DNS), so treat them as untrusted.
+        function esc(v) {
+            return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
         function obfuscateMAC(mac) { return mac ? mac.slice(0, -1) + 'J' : mac; }
         function obfuscateIP(ip) {
             if(!ip) return ip;
@@ -141,12 +145,12 @@
                     const tr = document.createElement('tr');
                     const dateStr = new Date(d.last_seen).toLocaleString();
                     tr.innerHTML = `
-                        <td style="font-weight: 600;">${obfuscateText(d.hostname)}</td>
+                        <td style="font-weight: 600;">${esc(obfuscateText(d.hostname))}</td>
                         <td>${obfuscateMAC(d.mac)}</td>
                         <td>${obfuscateIP(d.ip)}</td>
-                        <td>${d.vendor}</td>
+                        <td>${esc(d.vendor)}</td>
                         <td>
-                            <select class="status-badge ${d.status}" onchange="updateStatus('${d.mac}', this.value)" style="border:none; cursor:pointer;">
+                            <select class="status-badge ${esc(d.status)}" data-mac="${esc(d.mac)}" onchange="updateStatus(this.dataset.mac, this.value)" style="border:none; cursor:pointer;">
                                 <option value="new_unknown" ${d.status === 'new_unknown' ? 'selected' : ''}>New Unknown</option>
                                 <option value="unknown" ${d.status === 'unknown' ? 'selected' : ''}>Unknown</option>
                                 <option value="trusted" ${d.status === 'trusted' ? 'selected' : ''}>Trusted</option>
@@ -174,7 +178,7 @@
             tbody.innerHTML = '';
             events.forEach(e => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${e.timestamp}</td><td><span class="status-badge trusted">${e.type}</span></td><td>${obfuscateText(e.message)}</td>`;
+                tr.innerHTML = `<td>${esc(e.timestamp)}</td><td><span class="status-badge trusted">${esc(e.type)}</span></td><td>${esc(obfuscateText(e.message))}</td>`;
                 tbody.appendChild(tr);
             });
         }
